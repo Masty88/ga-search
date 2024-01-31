@@ -28,50 +28,19 @@
 
 <body>
   <main>
-    <ga-search limit="10">
-      <input type="search" class="autocomplete-input" placeholder="Search location">
-      <ul class="autocomplete-result-list"></ul>
-    </ga-search>
-
-    <ga-search id="geol-layers" types="layer">
-      <input type="search" class="autocomplete-input" placeholder="Search geology layer">
-      <ul class="autocomplete-result-list"></ul>
-    </ga-search>
-
-    <ga-search id="location-layer" types="location,layer" limit="5">
-      <input type="search" class="autocomplete-input" placeholder="Search location and layer">
-      <ul class="autocomplete-result-list"></ul>
-    </ga-search>
-
-    <ga-search id="custom-sources" types="additionalSource,location">
-      <input type="search" class="autocomplete-input" placeholder="Search location and custom source">
+    <ga-search
+      limit="42"
+      lang="fr"
+      sr="2056"
+      types="location"
+      locationOrigins="zipcode,gg25,address">
+      <input type="search" class="autocomplete-input" placeholder="Search adress">
       <ul class="autocomplete-result-list"></ul>
     </ga-search>
   </main>
 
   <script>
-    const geolLayers = document.querySelector('#geol-layers');
-    geolLayers.filterResults = result => result.properties.topics.includes('geol');
 
-    const locationLayer = document.querySelector('#location-layer');
-    locationLayer.renderResult = (result, label) => `${result.properties.origin === 'layer' ? '👀' : '🦶'} ${label}`;
-
-    const customSources = document.querySelector('#custom-sources');
-    customSources.additionalSource = {
-      search: input => Promise.resolve([
-        {display: 'Run away!', origin: 'Holy Grail'},
-        {display: 'Romani ite domum', origin: 'Life of Brian'},
-        {display: 'Ni!', origin: 'Holy Grail'}
-      ]),
-      getResultValue: result => result.display
-    };
-
-    const elements = document.querySelectorAll('ga-search');
-    elements.forEach(element => {
-      element.addEventListener('submit', event => {
-        console.log(event.target, event.detail.result);
-      });
-    });
 
   </script>
 </body>

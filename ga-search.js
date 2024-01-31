@@ -2,11 +2,11 @@ import {LitElement, html} from 'lit';
 import Autocomplete from '@trevoreyre/autocomplete-js';
 import Storage from './storage';
 
-const baseUrl = 'https://api3.geo.admin.ch/rest/services/api/SearchServer';
-const searchUrl = baseUrl + '?geometryFormat=geojson&sr={sr}&lang={lang}&limit={limit}&searchText={input}';
-const locationSearchUrl = searchUrl + '&type=locations&origins={origins}';
-const layerSearchUrl = searchUrl + '&type=layers';
-const featureSearchUrl = searchUrl + '&type=featuresearch&features={layers}';
+const baseUrl = 'https://www.sigip.ch/search';
+const searchUrl = baseUrl + '?limit={limit}&partitionlimit={partitionlimit}&interface={interface}&query={input}&lang={lang}';
+const defaultLimit = 30;
+const defaultPartitionLimit = 5;
+const defaultInterface = 'desktop';
 
 class GeoadminSearch extends LitElement {
 
@@ -18,7 +18,6 @@ class GeoadminSearch extends LitElement {
       lang: {type: String},
       types: {type: String},
       sr: {type: String},
-      locationOrigins: {type: String},
       featureLayers: {type: String},
       filterResults: {type: Object},
       renderResult: {type: Object},
@@ -36,7 +35,6 @@ class GeoadminSearch extends LitElement {
     this.debounceTime = 200;
     this.types = 'location';
     this.sr = '4326';
-    this.locationOrigins = 'zipcode,gg25';
     this.filterResults = undefined;
     this.renderResult = undefined;
     this.additionalSource = undefined;
@@ -51,8 +49,6 @@ class GeoadminSearch extends LitElement {
 
       search: input => {
         return new Promise(resolve => {
-          const urls = [];
-          const types = this.types.split(',');
           if (input.length < this.minlength && this.historyEnabled) {
             const history = this.storage.getHistory();
             if (input.length === 0) {
@@ -64,57 +60,39 @@ class GeoadminSearch extends LitElement {
               resolve(filteredResults);
             }
           }
-          if (input.length >= this.minlength) {
-            types.forEach(type => {
-              if (type === 'location') {
-                const locationUrl = locationSearchUrl.replace('{origins}', this.locationOrigins);
-                urls.push(locationUrl);
-              }
-              if (type === 'layer') {
-                urls.push(layerSearchUrl);
-              }
-              if (type === 'feature' && this.featureLayers) {
-                const featureUrl = featureSearchUrl.replace('{layers}', this.featureLayers);
-                urls.push(featureUrl);
-              }
-            });
-            const promises = urls.map(url => {
-              url = url
-                .replace('{lang}', getLang(this.lang || document.documentElement.lang))
-                .replace('{sr}', this.sr)
-                .replace('{limit}', this.limit)
-                .replace('{input}', input);
-              return fetch(url)
-                .then(response => response.json())
-                .then(featureCollection => featureCollection.features);
-            });
-            if (this.additionalSource) {
-              const promise = this.additionalSource.search(input)
-                .then(results => results.map(result => {
-                  return {
-                    type: 'additionalSource',
-                    result: result
-                  };
-              }));
-              // insert additionalSource at the right place to respect the order of the types
-              const index = types.indexOf('additionalSource');
-              promises.splice(index === -1 ? 0 : index, 0, promise);
-            }
+          const sigipUrl = searchUrl
+            .replace('{input}', encodeURIComponent(input))
+            .replace('{limit}', this.limit || defaultLimit)
+            .replace('{partitionlimit}', defaultPartitionLimit)
+            .replace('{interface}', defaultInterface)
+            .replace('{lang}', getLang(this.lang || document.documentElement.lang));
 
-            Promise.all(promises)
-              .then(results => {
-                results = results.flat();
-                if (this.filterResults) {
-                  results = results.filter(this.filterResults);
-                }
-                // FIXME: add header between type
-                resolve(results);
-              });
-          } else {
-            resolve([]);
-          }
+          const sigipPromise = fetch(sigipUrl)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Errore di rete');
+              }
+              return response.json();
+            }).then(data => data.features);
+
+          const promises = [sigipPromise];
+
+
+          Promise.all(promises)
+            .then(results => {
+              let combinedResults = results.flat();
+              if (this.filterResults) {
+                combinedResults = combinedResults.filter(this.filterResults);
+              }
+              resolve(combinedResults);
+            })
+            .catch(error => {
+              console.error('Errore nella ricerca combinata:', error);
+              resolve([]);
+            });
         });
       },
+
 
       renderResult: (result, props) => {
         // Match input value except if the string is inside an HTML tag.
